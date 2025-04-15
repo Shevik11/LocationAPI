@@ -1,0 +1,14 @@
+<h1>{{ location.name }}</h1>
+    <p>Average Rating: {{ average_rating }}</p>
+
+<h2>Feedbacks</h2>
+<ul>
+  {% for feedback in feedbacks %}
+      <li>
+        <p>Comments: {{ feedback.comments }}</p>
+        <p>Stars: {{ feedback.stars }}</p>
+        <p>Likes: {{ feedback.comments_like }}</p>
+        <p>Dislikes: {{ feedback.comments_dislike }}</p>
+      </li>
+  {% endfor %}
+</ul>

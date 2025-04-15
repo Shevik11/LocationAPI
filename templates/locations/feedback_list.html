@@ -1,0 +1,12 @@
+<h1>Feedback List</h1>
+<ul>
+    {% for feedback in feedbacks %}
+    <li>
+        <p>Comments: {{ feedback.comments }}</p>
+        <p>Stars: {{ feedback.stars }}</p>
+        <p>Likes: {{ feedback.comments_like }}</p>
+        <p>Dislikes: {{ feedback.comments_dislike }}</p>
+        <p>Category: {{ locations.category }}}</p>>
+    </li>
+    {% endfor %}
+</ul>

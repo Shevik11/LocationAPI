@@ -1,0 +1,18 @@
+<h1>Feedback List</h1>
+<form method="post" action="{% url 'filter-category' %}">
+    {% csrf_token %}
+    <label for="category">Category:</label>
+    <input type="text" id="category" name="category" required>
+    <button type="submit">Filter</button>
+</form>
+<ul>
+    {% for location in locations %}
+    <li>
+        <p>Comments: {{ location.comments }}</p>
+        <p>Stars: {{ location.stars }}</p>
+        <p>Likes: {{ location.comments_like }}</p>
+        <p>Dislikes: {{ location.comments_dislike }}</p>
+        <p>Category: {{ location.category }}</p>
+    </li>
+    {% endfor %}
+</ul>

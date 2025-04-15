@@ -1,0 +1,7 @@
+<h1>Локації</h1>
+<ul>
+    {% for location in locations %}
+        <li><a>{{ location.name }}</a></li>
+    {% endfor %}
+</ul>
+<a href="{% url 'locations-create' %}">Додати нову локацію</a>

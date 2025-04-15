@@ -1,0 +1,7 @@
+<h1>{{ location.name }}</h1>
+<a href="{% url 'locations-update' location.pk %}">Редагувати</a>
+<form action="{% url 'locations-delete' location.pk %}" method="post">
+    {% csrf_token %}
+    <button type="submit">Видалити</button>
+</form>
+<a href="{% url 'locations-list' %}">Назад до списку</a>
