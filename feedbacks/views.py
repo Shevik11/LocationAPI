@@ -1,26 +1,36 @@
-from django.contrib.auth.mixins import LoginRequiredMixin
 from .models import Feedback
 from .serializers import FeedbackSerializer
 from rest_framework import generics, response, status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
+from .permissions import IsOwnerOrReadOnly
 
-# Create your views here.
 
-
-class FeedbacksListCreateAPIView(LoginRequiredMixin, generics.ListCreateAPIView):
+class FeedbacksListCreateAPIView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
     queryset = Feedback.objects.all()
     serializer_class = FeedbackSerializer
 
     def get_queryset(self):
         queryset = Feedback.objects.all()
-        name_query = self.request.query_params.get("name")
-        if name_query:
-            queryset = queryset.filter(name__icontains=name_query)
+        location_id = self.request.query_params.get("location_id")
+        if location_id:
+            queryset = queryset.filter(location_id=location_id)
         return queryset
 
+    def perform_create(self, serializer):
+        # Check if user already provided feedback for this location
+        location = serializer.validated_data.get('location')
+        if Feedback.objects.filter(user=self.request.user, location=location).exists():
+            raise ValidationError("You have already provided feedback for this location.")
+        serializer.save(user=self.request.user)
+        # Note: Signal handles average_rating update automatically
 
-class LocationsRetrieveUpdateDestroyAPIView(
-    LoginRequiredMixin, generics.RetrieveUpdateDestroyAPIView
+
+class FeedbackRetrieveUpdateDestroyAPIView(
+    generics.RetrieveUpdateDestroyAPIView
 ):
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     queryset = Feedback.objects.all()
     serializer_class = FeedbackSerializer
 
@@ -30,12 +40,13 @@ class LocationsRetrieveUpdateDestroyAPIView(
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        # Note: Signal handles average_rating update automatically
         return response.Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        Feedback.objects.filter(location=instance).delete()
         self.perform_destroy(instance)
+        # Note: Signal handles average_rating update automatically
         return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 

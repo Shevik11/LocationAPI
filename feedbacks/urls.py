@@ -9,7 +9,7 @@ urlpatterns = [
     ),
     path(
         "feedback/<int:pk>/",
-        views.LocationsRetrieveUpdateDestroyAPIView.as_view(),
+        views.FeedbackRetrieveUpdateDestroyAPIView.as_view(),
         name="feedbacks-retrieve-update-destroy",
     ),
 ]
