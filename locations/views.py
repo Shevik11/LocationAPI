@@ -13,12 +13,13 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 # Create your views here.
 
 
-class LocationsListCreateAPIView(LoginRequiredMixin, generics.ListCreateAPIView):
+class LocationsListCreateAPIView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
     queryset = Locations.objects.all()
     serializer_class = LocationsSerializer
 
     def get_queryset(self):
-        queryset = Locations.objects.all()
+        queryset = Locations.objects.all().order_by('-average_rating')
         name_query = self.request.query_params.get("name")
         if name_query:
             queryset = queryset.filter(name__icontains=name_query)
@@ -26,33 +27,57 @@ class LocationsListCreateAPIView(LoginRequiredMixin, generics.ListCreateAPIView)
 
 
 class LocationsRetrieveUpdateDestroyAPIView(
-    LoginRequiredMixin, generics.RetrieveUpdateDestroyAPIView
+    generics.RetrieveUpdateDestroyAPIView
 ):
+    permission_classes = [IsAuthenticated]
     queryset = Locations.objects.all()
     serializer_class = LocationsSerializer
+
+    def get_object(self):
+        try:
+            return super().get_object()
+        except Locations.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Location not found")
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
-        instance.average_rating = calculate_average_rating(instance.id)
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        
+        # Recalculate average rating after update
+        instance.average_rating = calculate_average_rating(instance.id)
+        instance.save()
+        
         return response.Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        # Delete all related feedbacks (CASCADE will handle this automatically)
         Feedback.objects.filter(location=instance).delete()
         self.perform_destroy(instance)
         return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class DetailLocationAPIView(LoginRequiredMixin, APIView):
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, location_id):
-        location = Locations.objects.get(id=location_id)
-        feedbacks = Feedback.objects.filter(location=location)
+        try:
+            location = Locations.objects.get(id=location_id)
+        except Locations.DoesNotExist:
+            return response.Response(
+                {"error": "Location not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        feedbacks = Feedback.objects.filter(location=location).order_by('-created_at')
         average_rating = calculate_average_rating(location_id)
+        location.average_rating = average_rating
+        location.save()
+        
         location_data = LocationsSerializer(location).data
         feedbacks_data = FeedbackSerializer(feedbacks, many=True).data
         return response.Response(
@@ -65,12 +90,20 @@ class DetailLocationAPIView(LoginRequiredMixin, APIView):
         )
 
 
-class FilterFeedbacksByRateAPIView(APIView):
+class FilterLocationsByRateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        feedbacks = Feedback.objects.filter(stars__gte=pk)  # Отримуємо всі відгуки
-        serializer = FeedbackSerializer(feedbacks, many=True)
+        # Validate rating parameter
+        if pk < 1 or pk > 5:
+            return response.Response(
+                {"error": "Rating must be between 1 and 5"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Get locations with average_rating >= pk
+        locations = Locations.objects.filter(average_rating__gte=pk)
+        serializer = LocationsSerializer(locations, many=True)
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -95,27 +128,35 @@ class SaveDataAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        locations = Locations.objects.all().values("name", "average_rating", "category")
-        locations_df = pd.DataFrame(locations)
+        try:
+            locations = Locations.objects.all().values("name", "average_rating", "category")
+            locations_df = pd.DataFrame(locations)
 
-        # Експорт даних для Feedback
-        feedbacks = Feedback.objects.all().values(
-            "user__username",
-            "location__name",
-            "comments",
-            "comments_like",
-            "comments_dislike",
-            "stars",
-        )
-        feedbacks_df = pd.DataFrame(feedbacks)
+            # Export data for Feedback
+            feedbacks = Feedback.objects.all().values(
+                "user__username",
+                "location__name",
+                "comments",
+                "comments_like",
+                "comments_dislike",
+                "stars",
+                "created_at",
+            )
+            feedbacks_df = pd.DataFrame(feedbacks)
 
-        response = HttpResponse(content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="data_export.csv"'
+            # Save to CSV files
+            locations_df.to_csv("data1.csv", sep=";", index=False)
+            feedbacks_df.to_csv("data2.csv", sep=";", index=False)
 
-        locations_df.to_csv("data1.csv", sep=";", index=False)
-        feedbacks_df.to_csv("data2.csv", sep=";", index=False)
-
-        return HttpResponse("save successfully", status=status.HTTP_200_OK)
+            return response.Response(
+                {"message": "Data saved successfully", "files": ["data1.csv", "data2.csv"]},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return response.Response(
+                {"error": f"Error saving data: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 #

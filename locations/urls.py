@@ -20,7 +20,7 @@ urlpatterns = [
     ),
     path(
         "filter-rating/<int:pk>/",
-        views.FilterFeedbacksByRateAPIView.as_view(),
+        views.FilterLocationsByRateAPIView.as_view(),
         name="filter-rating",
     ),
     path(

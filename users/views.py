@@ -15,9 +15,20 @@ class RegisterAPIView(APIView):
     def post(self, request):
         serializer = UserRegisterSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            user = serializer.save()
+            return Response(
+                {
+                    "message": "User registered successfully",
+                    "user_id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        return Response(
+            {"error": "Registration failed", "details": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 class ProtectedAPIView(APIView):
@@ -32,7 +43,7 @@ class ProtectedAPIView(APIView):
 class LoginView(APIView):
     def get(self, request):
         return Response(
-            {"message": "GET method is not allowed"},
+            {"message": "GET method is not allowed. Use POST to login."},
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
@@ -42,9 +53,17 @@ class LoginView(APIView):
             user = form.get_user()
             login(request, user)
             return Response(
-                {"message": "Logged in successfully"}, status=status.HTTP_200_OK
+                {
+                    "message": "Logged in successfully",
+                    "user_id": user.id,
+                    "username": user.username,
+                },
+                status=status.HTTP_200_OK,
             )
-        return Response(form.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": "Invalid credentials", "details": form.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 class LogoutView(APIView):
